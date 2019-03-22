@@ -1,6 +1,12 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const webpack = require('webpack');
+// JavaScript压缩
+const UglifyJSPlugin = require('uglifyjs-webpack-plugin');
+// 打包优化，打包前自动清理 dist 文件
+const CleanWebpackPlugin = require('clean-webpack-plugin');
+// 单独打包css
+const ExtraTextPlugin = require('extract-text-webpack-plugin');
 
 module.exports = {
   /* 入口 */
@@ -14,10 +20,9 @@ module.exports = {
   /* 输出到 dist 文件夹，输出名字为 bundle.js */
   output: {
     path: path.join(__dirname, './dist'),
-    // filename: 'bundle.js',
-    filename: '[name].[hash].js',
-    // chunkFilename是除了entry定义的入口js之外的js, name在router.js中 bundle-loader后进行设置
+    filename: '[name].[chunkhash].js',
     chunkFilename: '[name].[chunkhash].js',
+    publicPath: '/'
   },
   /**
    * src 文件夹下面的以 .js 结尾的文件，要使用 babel 解析
@@ -29,9 +34,13 @@ module.exports = {
       use: ['babel-loader?cacheDirectory=true'],
       include: path.join(__dirname, 'src')
     }, {
-      // 编译css
+      // 编译css,打包css
       test: /\.css$/,
-      use: ['style-loader', 'css-loader'],
+      // use: ['style-loader', 'css-loader'],
+      use: ExtraTextPlugin.extract({
+        fallback: 'style-loader',
+        use: 'css-loader'
+      })
     }, {
       // 编译图片
       test: /\.(png|jpg|gif)$/,
@@ -42,17 +51,6 @@ module.exports = {
         }
       }]
     }]
-  },
-  /**
-   * webpack-dev-server为webpack打包生成的资源文件提供Web服务
-   */
-  devServer: {
-    contentBase: path.join(__dirname, './dist'),
-    port: 8080,
-    historyApiFallback: true, // 任意的404响应都被替代为index.html
-    // proxy: {
-    //   "/api": "http://localhost:3000"
-    // }
   },
   resolve: {
     /** 
@@ -67,12 +65,30 @@ module.exports = {
     }
   },
   /* 错误提示信息更加详细 */
-  devtool: 'inline-source-map',
+  devtool: 'cheap-module-source-map',
   /* 配置打包后的index.html模板 */
-  plugins: [new HtmlWebpackPlugin({
-    filename: 'index.html',
-    template: path.join(__dirname, 'src/index.html'),
-  }), new webpack.optimize.CommonsChunkPlugin({
-    name: 'vendor'
-  })]
+  plugins: [
+    new HtmlWebpackPlugin({
+      filename: 'index.html',
+      template: path.join(__dirname, 'src/index.html'),
+    }),
+    new webpack.optimize.CommonsChunkPlugin({
+      name: 'vendor',
+    }),
+    new UglifyJSPlugin(),
+    new webpack.DefinePlugin({
+      'process.env': {
+        'NODE_ENV': JSON.stringify('production')
+      }
+    }),
+    new webpack.HashedModuleIdsPlugin(),
+    new webpack.optimize.CommonsChunkPlugin({
+      name: 'runtime'
+    }),
+    new CleanWebpackPlugin(),
+    new ExtraTextPlugin({
+      filename: '[name].[contenthash:5].css',
+      allChunks: true,
+    })
+  ]
 };
